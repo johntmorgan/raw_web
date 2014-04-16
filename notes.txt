@@ -1,0 +1,142 @@
+Build a web site from scratch, no framework. Help to expose what's going on behind Rails magic. 
+
+First and second course here. Low-level stuff today. No Rails, Sinatra. Do cover Ruby.
+
+What they've been noticing, students have a pretty good understanding of development within a framework. Most of it based on Rails. But most Rails conventions can be very magical. Takes care of a lot of things for you. It'd be good to look under the covers. Divided into 2-3 workshops, maybe 3. 
+
+Build a web app directly on a web server. What are the things we're taking for granted in Rails. 
+
+Brief review of HTTP:
+(Can also go back to TCP level - but this is a good enough starting point)
+HTTP is a request-response protocol. Special breed of code. How to take a request, generate a response. 
+
+HTTP verbs - GET, POST, PUT, PATCH, DELETE, HEAD(get headers), TRACE, OPTIONS, CONNECT
+Defined in RFC 5789.
+GET - request representation of a resource
+POST - submit a command/data to server
+PUT - update to existing resource
+DELETE - deleting resources
+PATCH - partial modification to existing resource - Rails 4 have both, use PATCH not PUT
+
+Issue GET as much as you want, not changing things. Unlike POST. 
+
+Response gives a status code
+200 - OK
+404 - Not found
+500 - Server error
+
+Response will also have headers and a body. 
+
+Dev HTTP client - Chrome plugin - look at HTTP requests and responses. 
+
+Content-type - text/html, charset=UTF-9
+Status 200 OK
+
+Build a server based on WEBrick.
+Ruby Doc for WEBrick. Part of Ruby stdlib. 
+
+The server object is an instance of WEBrick HTTP server. 
+Make Ruby file.
+ruby simplest_server.rb
+
+Go to port 8000, actually see "hello, world"
+Can run Dev HTTP client
+
+Rails does hot restart - from scratch, you need to restart the server to pick it up
+Added content-type
+
+Binding.pry - look at request 
+@header
+	"connection" => "keep-alive" - HTTP 1.1 - keep connection alive after hitting site - 30s timeout cache-control max-age=0 means no caching
+	need @path
+request.path = "/helloworld.html"
+local_file_name = request.path[1..-1]
+
+content = File.open(local_file_name)
+
+server loads file according to path
+
+now, have directory site with html & css for local site
+now, local_file_name = "site#{request.path}"
+
+Have site, can click around pages, but the CSS is not loading. Even though we got a 200
+Why not? We set all content to 'text/html'
+
+if local_file_name.end_with?("css")
+	response['Content-Type'] = 'text/css'
+else
+	['Content-Type'] = 'text/plain'
+
+Now stylesheet is applied
+But it's pretty cumbersome, especially if applying a lot.
+Do pry - mimetypes from WEBrick (most servers have that list maintained)
+If we set nothing explicitly, should look up from list. Yep, works automatically!
+
+Now, if we type a file that doesn't exist, it returns a general server error. 
+Really want to return a 404, not a 500 though.
+
+if File.exists?(local_file_name)
+	(do response stuff)
+else
+	response.status = 404
+	response.body = "<html><body><h1> NOT FOUND </h1></body></html>"
+end
+
+What we've done so far is very simple dumb static file server. More to it, look at Apache, NGinx - we just built a simple HTTP server based on Ruby & WEBricks library. Lots more edge cases, but once we have a static site & html files, serving those files is not hard. 
+
+Pushing a little farther - putting on Rack/Heroku
+
+require 'rack'
+
+Rack is a ruby-server interface. Lots of tasks in building webservers are really common. This is the interface that all Ruby-based server conform to. Reuse components, build middleware on top.
+
+class HelloWorld
+  # env is a hash - all the headers in the HTTP request
+  def call(env)
+  	# code, headers, array representing body
+  	[200, {"Content-Type" => "text/plain"}, [Hello world!]]
+  end
+end
+
+Rack::Handler::WEBrick.run HelloWorldServer.new
+
+Running on port 8080, default Rack port
+
+replicate code - pry inside of rack and see what changes
+Rack terminology is a little bit different. 
+Note that Rack also takes care of ctrl-C server shutdown. Don't need that code.
+replace #{request.path} with #{env['PATH_INFO']}
+
+replace if / else contents
+[200, {}, content] #delegate content-type to Rack
+
+One more step. Separate logic of webapp and running server. 
+create a file, config.ru
+
+require 'rack'
+require './surf_server' #current directory, surf_server.rb
+
+run SurfServer.new
+
+$rackup
+gem rack looks for config.ru file, mount on rack
+
+Rack also comes with nicer logging! 
+And with Rack, we can put it on Heroku! Google for document.
+add a Gemfile
+git init
+git add, commit
+heroku create
+git push heroku master
+heroku open
+
+Neat!
+Rack adds very little overhead, so super fast. 
+Next workshop: dynamic content. 
+
+Look at a rails app - surprise, config.ru is in the top directory
+Rails is a ton of code hosted on Rack. 
+
+Soon... mini MVC framework - Rails compartmentalizes it. 
+Of course, more to web servers than that. 
+Verb render applies data to view template. 
